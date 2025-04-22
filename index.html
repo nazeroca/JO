@@ -25,10 +25,10 @@
 
         .circle {
             position: absolute;
-            top: -80px;
-            width: 80px;
-            height: 80px;
-            background-color: #0f0;
+            top: -100px;
+            width: 100px;
+            height: 100px;
+            background-color: rgb(255, 255, 255);
             border-radius: 50%;
             left: 50%;
             transform: translateX(-50%);
@@ -82,11 +82,11 @@
 
         .fortune {
             position: absolute;
-            top: 10vh;
+            top: 9vh;
             left: 50%;
             transform: translateX(-50%);
             color: rgb(255, 255, 255);
-            font-size: 20vw;
+            font-size: 10vw;
             font-weight: bold;
             z-index: 0;
             display: none;
@@ -117,6 +117,21 @@
             color: white;
             font-weight: bold;
         }
+
+        .skip-button {
+            position: absolute;
+            bottom: 2vh;
+            right: 2vw;
+            padding: 2vh 3vw;
+            font-size: 4vw;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            background-color: #555;
+            color: white;
+            cursor: pointer;
+            z-index: 15;
+        }
     </style>
 </head>
 
@@ -127,7 +142,9 @@
             <button id="vol-down">−</button>
             <span id="volume-display">100%</span>
             <button id="vol-up">+</button>
+
         </div>
+        <button id="skip-button" class="skip-button hidden">スキップ</button>
 
         <div class="button-group" id="button-group"></div>
         <div class="info" id="info"></div>
@@ -145,8 +162,10 @@
         const penaltySound = document.getElementById('pena-sound');
         const infoDisplay = document.getElementById('info');
         const fortuneDisplay = document.getElementById('fortune');
+        const skipButton = document.getElementById('skip-button');
 
-        const fallDuration = 4000;
+
+        const fallDuration = 3000;
         let intervalId = null;
         let circleCount = 0;
         let maxCircles = 100;
@@ -156,42 +175,34 @@
         let autoStartTimeout = null;
         let setCount = 0; // ← セット数を追加
         let showOnlyOneButtonNextTime = false; // ← 追加
-
-
+        let isRestFortune = false; // ← 「休憩」かどうかを記録するフラグ
+        let isSkipping = false;
 
         const buttonConfigs = [
-            { label: 'Easy', speed: 4000, count: 25, color: '#00E000' },
-            { label: 'Normal', speed: 2000, count: 50, color: '#0000E0' },
-            { label: 'Hard', speed: 1000, count: 100, color: '#E00000' },
             { label: 'Very Easy', speed: 5000, count: 20, color: '#FF69B4' },
-            { label: 'Very Hard', speed: 800, count: 125, color: '#800080' },
-            { label: 'Long Run', speed: 4000, count: 75, color: '#FF8C00' },
-            { label: 'Middle Run', speed: 3000, count: 66, color: '#FFD700' },
+            { label: 'Easy', speed: 4000, count: 25, color: '#00E000' },
+            { label: 'Easy+', speed: 3500, count: 35, color: '#00C000' },
+            { label: 'Normal', speed: 2500, count: 40, color: '#0000E0' },
+            { label: 'Normal+', speed: 2000, count: 45, color: '#0000C0' },
+            { label: 'Hard', speed: 1500, count: 50, color: '#E00000' },
+            { label: 'Hard+', speed: 1000, count: 55, color: '#C00000' },
+            { label: 'Very Hard', speed: 800, count: 60, color: '#800080' },
+            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
+            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
+            { label: 'Long Run', speed: 3000, count: 66, color: '#FF8C00' },
+            { label: 'Middle Run', speed: 2500, count: 75, color: '#FFD700' },
+            { label: 'Dash', speed: 500, count: 20, color: '#FFD700' },
             { label: 'Rand Easy', speed: 0, count: 0, color: '#66FF66' },
             { label: 'Rand Normal', speed: 0, count: 0, color: '#6666FF' },
             { label: 'Rand Hard', speed: 0, count: 0, color: '#FF6666' },
-            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
-            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
-            { label: 'Accel Easy', speed: 5000, count: 30, color: '#AAFFAA' },
-            { label: 'Accel Normal', speed: 5000, count: 50, color: '#AAAAFF' },
+            { label: 'Accel Easy', speed: 2000, count: 30, color: '#AAFFAA' },
+            { label: 'Accel Normal', speed: 3000, count: 50, color: '#AAAAFF' },
             { label: 'Accel Hard', speed: 5000, count: 80, color: '#FFAAAA' }
 
         ];
 
-        function getRandomSpeedAndCount1() {
-            const randomSpeed = getSinusoidalRandom(2000, 5000);
-            const randomCount = Math.floor(100000 / randomSpeed);;
-            return { speed: randomSpeed, count: randomCount };
-        }
-
-        function getRandomSpeedAndCount2() {
-            const randomSpeed = getSinusoidalRandom(1500, 4000);
-            const randomCount = Math.floor(100000 / randomSpeed);
-            return { speed: randomSpeed, count: randomCount };
-        }
-
-        function getRandomSpeedAndCount3() {
-            const randomSpeed = getSinusoidalRandom(500, 1200);
+        function getRandomSpeedAndCount(i,j) {
+            const randomSpeed = getSinusoidalRandom(i,j);
             const randomCount = Math.floor(100000 / randomSpeed);;
             return { speed: randomSpeed, count: randomCount };
         }
@@ -214,13 +225,13 @@
             return selectedIndexes.map(index => {
                 const base = buttonConfigs[index];
                 if (base.label === 'Rand Easy') {
-                    const { speed, count } = getRandomSpeedAndCount1();
+                    const { speed, count } = getRandomSpeedAndCount(2000, 5000);
                     return { ...base, speed, count };
                 } else if (base.label === 'Rand Normal') {
-                    const { speed, count } = getRandomSpeedAndCount2();
+                    const { speed, count } = getRandomSpeedAndCount(1000, 3000);
                     return { ...base, speed, count };
                 } else if (base.label === 'Rand Hard') {
-                    const { speed, count } = getRandomSpeedAndCount3();
+                    const { speed, count } = getRandomSpeedAndCount(500, 1500);
                     return { ...base, speed, count };
                 } else {
                     return base;
@@ -254,15 +265,20 @@
 
             buttonGroup.classList.remove('hidden');
             if (setCount > 0) {
+                const delay = isRestFortune ? 3000 : 30000; // ← 休憩のときは5秒に短縮
                 autoStartTimeout = setTimeout(() => {
                     buttonGroup.classList.add('hidden');
-                    startGame(500, 50);
-                }, 30000);
+                    startGame(500, 75);
+                }, delay);
+                isRestFortune = false;
             }
+
         }
 
 
         function spawnCircle() {
+            if (isSkipping) return;
+
             if (circleCount >= maxCircles) {
                 clearInterval(intervalId);
                 checkCirclesAndShowButtons();
@@ -277,12 +293,17 @@
             const startTime = performance.now();
 
             function animateCircle(currentTime) {
+                if (isSkipping) {
+                    circle.remove();
+                    return;
+                }
+
                 const elapsed = currentTime - startTime;
                 const progress = elapsed / fallDuration;
 
                 if (progress < 1) {
                     const containerHeight = gameArea.clientHeight;
-                    const startY = -80;
+                    const startY = -0.1 * gameArea.clientHeight;
                     const endY = containerHeight;
                     const posY = startY + (endY - startY) * progress;
                     circle.style.top = posY + 'px';
@@ -291,14 +312,16 @@
                     const judgeLineY = containerHeight * 0.8;  // 判定ラインのY座標
 
                     // 判定ラインと重なったときに音を鳴らす
-                    if (!circle.played && Math.abs(circleCenter - judgeLineY) < 3) {
+                    if (!circle.played && Math.abs(circleCenter - judgeLineY) < 5) {
                         circle.played = true; // 先にフラグを立てる
-                        hitSound.currentTime = 0;
-                        hitSound.play();
+
+                        hitSound.pause();              // 再生中止
+                        hitSound.currentTime = 0;     // 再生位置を先頭に
+                        hitSound.play();              // 再再生
+
                         circle.remove();
                         return;
                     }
-
                     requestAnimationFrame(animateCircle);
                 } else {
                     circle.remove();
@@ -312,22 +335,53 @@
 
         function maybeShowFortune() {
             if (!ENABLE_FORTUNE) return;
-            if (Math.random() < 0.01 * setCount) {
-                const fortunes = ['休憩', '根本', '透明', '選択']; // ←「選択」追加
+            if (Math.random() < 0.9 * setCount) {
+                const fortunes = ['休憩短縮', '根本固定', '透明使用', '選択肢減少', '易指令削除']; // ←「選択」追加
                 const selected = fortunes[Math.floor(Math.random() * fortunes.length)];
                 fortuneDisplay.textContent = selected;
                 fortuneDisplay.style.display = 'block';
 
-                if (selected === '選択') {
-                    showOnlyOneButtonNextTime = true; // ← フラグを立てる
+                if (selected === '選択肢減少') {
+                    showOnlyOneButtonNextTime = true;
+                } else if (selected === '休憩短縮') {
+                    isRestFortune = true;
+                } else if (selected === '易指令削除') {
+                    const targetLabels = ['Very Easy', 'Easy', 'Easy+', 'Rand Easy','Accel Easy'];
+                    const candidates = buttonConfigs.filter(config => targetLabels.includes(config.label));
+
+                    if (candidates.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * candidates.length);
+                        const targetConfig = candidates[randomIndex];
+
+                        const indexToRemove = buttonConfigs.findIndex(config => config === targetConfig);
+                        if (indexToRemove !== -1) {
+                            buttonConfigs.splice(indexToRemove, 1);
+                        }
+                    }
                 }
             }
         }
 
-
         function clearFortune() {
             fortuneDisplay.style.display = 'none';
         }
+
+        skipButton.addEventListener('click', () => {
+            isSkipping = true;
+            clearInterval(intervalId);
+
+            // 出現済みノーツをすぐ消す
+            circles.forEach(circle => {
+                if (circle.isConnected) {
+                    circle.remove();
+                }
+            });
+
+            setTimeout(() => {
+                isSkipping = false;
+                checkCirclesAndShowButtons();
+            }, 100);
+        });
 
         function startGame(speed, count) {
             clearTimeout(autoStartTimeout);
@@ -340,6 +394,7 @@
             setCount++; // ← セット数をカウント！
             updateInfoDisplay();
             maybeShowFortune();
+            skipButton.classList.remove('hidden');
             intervalId = setInterval(spawnCircle, speed);
         }
 
@@ -354,7 +409,7 @@
             setCount++;
             updateInfoDisplay();
             maybeShowFortune();
-
+            skipButton.classList.remove('hidden');
             let i = 0;
 
             function spawnWithAcceleration() {
@@ -362,22 +417,14 @@
                     setTimeout(checkCirclesAndShowButtons, 1000);
                     return;
                 }
-
                 spawnCircle();
                 i++;
-
-                // 進行度に関係なく、最初のノーツをspeed ms、以降0.96倍で間隔を計算
                 let interval = speed * Math.pow(0.96, i - 1); // i番目の間隔を計算
 
-                // 下限を500msに設定
                 interval = Math.max(interval, 500);
 
-                // 次のノーツを指定した間隔で出す
                 setTimeout(spawnWithAcceleration, interval);
             }
-
-
-
             spawnWithAcceleration();
         }
 
@@ -386,10 +433,10 @@
             infoDisplay.textContent = `Set: ${setCount} | Speed: ${currentSpeed}s | Count: ${currentCount}`;
         }
 
-
         function checkCirclesAndShowButtons() {
             if (circles.every(circle => circle.offsetTop >= gameArea.clientHeight || !circle.isConnected)) {
                 clearFortune();
+                skipButton.classList.add('hidden');
                 showRandomButtons();
             } else {
                 setTimeout(checkCirclesAndShowButtons, 100);
