@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>title</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            background-color: #111;
+            font-family: sans-serif;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: calc(100vw * 16 / 9);
+            max-height: 100vh;
+            margin: 0 auto;
+            background-color: #222;
+            overflow: hidden;
+        }
+
+        .circle {
+            position: absolute;
+            top: -80px;
+            width: 80px;
+            height: 80px;
+            background-color: #0f0;
+            border-radius: 50%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+        }
+
+        .judgeline {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background-color: white;
+            top: 80%;
+            left: 0;
+        }
+
+        .button-group {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .start-button {
+            padding: 3vh 3vw;
+            font-size: 4vw;
+            border: none;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: bold;
+            color: white;
+            margin: 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            z-index: 20;
+        }
+
+        .fortune {
+            position: absolute;
+            top: 10vh;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgb(255, 255, 255);
+            font-size: 20vw;
+            font-weight: bold;
+            z-index: 0;
+            display: none;
+            opacity: 0.3;
+        }
+
+        .volume-control {
+            position: absolute;
+            top: 83%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 6vw;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+            font-weight: bold;
+        }
+
+        .volume-control button {
+            font-size: 6vw;
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            background-color: #444;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" id="game-area">
+        <div class="judgeline"></div>
+        <div class="volume-control" id="volume-control">
+            <button id="vol-down">−</button>
+            <span id="volume-display">100%</span>
+            <button id="vol-up">+</button>
+        </div>
+
+        <div class="button-group" id="button-group"></div>
+        <div class="info" id="info"></div>
+        <div class="fortune" id="fortune"></div>
+        <audio id="hit-sound" src="A.mp3" preload="auto"></audio>
+        <audio id="pena-sound" src="B.mp3" preload="auto"></audio>
+    </div>
+
+    <script>
+        const ENABLE_FORTUNE = true;
+
+        const gameArea = document.getElementById('game-area');
+        const buttonGroup = document.getElementById('button-group');
+        const hitSound = document.getElementById('hit-sound');
+        const penaltySound = document.getElementById('pena-sound');
+        const infoDisplay = document.getElementById('info');
+        const fortuneDisplay = document.getElementById('fortune');
+
+        const fallDuration = 4000;
+        let intervalId = null;
+        let circleCount = 0;
+        let maxCircles = 100;
+        let circles = [];
+        let currentSpeed = 1000;
+        let currentCount = 0;
+        let autoStartTimeout = null;
+        let setCount = 0; // ← セット数を追加
+        let showOnlyOneButtonNextTime = false; // ← 追加
+
+
+
+        const buttonConfigs = [
+            { label: 'Easy', speed: 4000, count: 25, color: '#00E000' },
+            { label: 'Normal', speed: 2000, count: 50, color: '#0000E0' },
+            { label: 'Hard', speed: 1000, count: 100, color: '#E00000' },
+            { label: 'Very Easy', speed: 5000, count: 20, color: '#FF69B4' },
+            { label: 'Very Hard', speed: 800, count: 125, color: '#800080' },
+            { label: 'Long Run', speed: 4000, count: 75, color: '#FF8C00' },
+            { label: 'Middle Run', speed: 3000, count: 66, color: '#FFD700' },
+            { label: 'Rand Easy', speed: 0, count: 0, color: '#66FF66' },
+            { label: 'Rand Normal', speed: 0, count: 0, color: '#6666FF' },
+            { label: 'Rand Hard', speed: 0, count: 0, color: '#FF6666' },
+            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
+            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
+            { label: 'Accel Easy', speed: 5000, count: 30, color: '#AAFFAA' },
+            { label: 'Accel Normal', speed: 5000, count: 50, color: '#AAAAFF' },
+            { label: 'Accel Hard', speed: 5000, count: 80, color: '#FFAAAA' }
+
+        ];
+
+        function getRandomSpeedAndCount1() {
+            const randomSpeed = getSinusoidalRandom(2000, 5000);
+            const randomCount = Math.floor(100000 / randomSpeed);;
+            return { speed: randomSpeed, count: randomCount };
+        }
+
+        function getRandomSpeedAndCount2() {
+            const randomSpeed = getSinusoidalRandom(1500, 4000);
+            const randomCount = Math.floor(100000 / randomSpeed);
+            return { speed: randomSpeed, count: randomCount };
+        }
+
+        function getRandomSpeedAndCount3() {
+            const randomSpeed = getSinusoidalRandom(500, 1200);
+            const randomCount = Math.floor(100000 / randomSpeed);;
+            return { speed: randomSpeed, count: randomCount };
+        }
+
+        function getSinusoidalRandom(min, max) {
+            const theta = Math.random() * Math.PI; // 0〜π
+            const sinValue = Math.sin(theta);      // 0〜1（sin の性質）
+            return Math.floor(min + (max - min) * sinValue);
+        }
+
+        function getRandomButtons() {
+            const selectedIndexes = [];
+            while (selectedIndexes.length < 2) {
+                const randomIndex = Math.floor(Math.random() * buttonConfigs.length);
+                if (!selectedIndexes.includes(randomIndex)) {
+                    selectedIndexes.push(randomIndex);
+                }
+            }
+
+            return selectedIndexes.map(index => {
+                const base = buttonConfigs[index];
+                if (base.label === 'Rand Easy') {
+                    const { speed, count } = getRandomSpeedAndCount1();
+                    return { ...base, speed, count };
+                } else if (base.label === 'Rand Normal') {
+                    const { speed, count } = getRandomSpeedAndCount2();
+                    return { ...base, speed, count };
+                } else if (base.label === 'Rand Hard') {
+                    const { speed, count } = getRandomSpeedAndCount3();
+                    return { ...base, speed, count };
+                } else {
+                    return base;
+                }
+            });
+        }
+
+        function showRandomButtons() {
+            buttonGroup.innerHTML = '';
+            const selectedButtons = getRandomButtons();
+
+            const buttonsToShow = showOnlyOneButtonNextTime ? [selectedButtons[0]] : selectedButtons;
+            showOnlyOneButtonNextTime = false; // ← 一度表示したら解除
+
+            buttonsToShow.forEach(config => {
+                const btn = document.createElement('button');
+                btn.className = 'start-button';
+                btn.textContent = config.label;
+                btn.style.backgroundColor = config.color;
+                btn.addEventListener('click', () => {
+                    clearTimeout(autoStartTimeout);
+                    if (config.label == 'Accel Easy' || config.label == 'Accel Normal' || config.label == 'Accel Hard') {
+                        startAccelGame(config.speed, config.count);
+                    } else {
+                        startGame(config.speed, config.count);
+                    }
+                });
+
+                buttonGroup.appendChild(btn);
+            });
+
+            buttonGroup.classList.remove('hidden');
+            if (setCount > 0) {
+                autoStartTimeout = setTimeout(() => {
+                    buttonGroup.classList.add('hidden');
+                    startGame(500, 50);
+                }, 30000);
+            }
+        }
+
+
+        function spawnCircle() {
+            if (circleCount >= maxCircles) {
+                clearInterval(intervalId);
+                checkCirclesAndShowButtons();
+                return;
+            }
+
+            const circle = document.createElement('div');
+            circle.classList.add('circle');
+            gameArea.appendChild(circle);
+            circles.push(circle);
+
+            const startTime = performance.now();
+
+            function animateCircle(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = elapsed / fallDuration;
+
+                if (progress < 1) {
+                    const containerHeight = gameArea.clientHeight;
+                    const startY = -80;
+                    const endY = containerHeight;
+                    const posY = startY + (endY - startY) * progress;
+                    circle.style.top = posY + 'px';
+
+                    const circleCenter = posY + 40;  // 円の中心位置
+                    const judgeLineY = containerHeight * 0.8;  // 判定ラインのY座標
+
+                    // 判定ラインと重なったときに音を鳴らす
+                    if (!circle.played && Math.abs(circleCenter - judgeLineY) < 3) {
+                        circle.played = true; // 先にフラグを立てる
+                        hitSound.currentTime = 0;
+                        hitSound.play();
+                        circle.remove();
+                        return;
+                    }
+
+                    requestAnimationFrame(animateCircle);
+                } else {
+                    circle.remove();
+                }
+            }
+
+            requestAnimationFrame(animateCircle);
+            circleCount++;
+        }
+
+
+        function maybeShowFortune() {
+            if (!ENABLE_FORTUNE) return;
+            if (Math.random() < 0.01 * setCount) {
+                const fortunes = ['休憩', '根本', '透明', '選択']; // ←「選択」追加
+                const selected = fortunes[Math.floor(Math.random() * fortunes.length)];
+                fortuneDisplay.textContent = selected;
+                fortuneDisplay.style.display = 'block';
+
+                if (selected === '選択') {
+                    showOnlyOneButtonNextTime = true; // ← フラグを立てる
+                }
+            }
+        }
+
+
+        function clearFortune() {
+            fortuneDisplay.style.display = 'none';
+        }
+
+        function startGame(speed, count) {
+            clearTimeout(autoStartTimeout);
+            buttonGroup.classList.add('hidden');
+            circleCount = 0;
+            maxCircles = count;
+            circles = [];
+            currentSpeed = speed / 1000;
+            currentCount = count;
+            setCount++; // ← セット数をカウント！
+            updateInfoDisplay();
+            maybeShowFortune();
+            intervalId = setInterval(spawnCircle, speed);
+        }
+
+        function startAccelGame(speed, count) {
+            clearTimeout(autoStartTimeout);
+            buttonGroup.classList.add('hidden');
+            circleCount = 0;
+            maxCircles = count;
+            circles = [];
+            currentSpeed = '⇒' + speed / 1000;
+            currentCount = count;
+            setCount++;
+            updateInfoDisplay();
+            maybeShowFortune();
+
+            let i = 0;
+
+            function spawnWithAcceleration() {
+                if (i >= count) {
+                    setTimeout(checkCirclesAndShowButtons, 1000);
+                    return;
+                }
+
+                spawnCircle();
+                i++;
+
+                // 進行度に関係なく、最初のノーツをspeed ms、以降0.96倍で間隔を計算
+                let interval = speed * Math.pow(0.96, i - 1); // i番目の間隔を計算
+
+                // 下限を500msに設定
+                interval = Math.max(interval, 500);
+
+                // 次のノーツを指定した間隔で出す
+                setTimeout(spawnWithAcceleration, interval);
+            }
+
+
+
+            spawnWithAcceleration();
+        }
+
+
+        function updateInfoDisplay() {
+            infoDisplay.textContent = `Set: ${setCount} | Speed: ${currentSpeed}s | Count: ${currentCount}`;
+        }
+
+
+        function checkCirclesAndShowButtons() {
+            if (circles.every(circle => circle.offsetTop >= gameArea.clientHeight || !circle.isConnected)) {
+                clearFortune();
+                showRandomButtons();
+            } else {
+                setTimeout(checkCirclesAndShowButtons, 100);
+            }
+        }
+
+        // 初期表示
+        showRandomButtons();
+
+        const volDownBtn = document.getElementById('vol-down');
+        const volUpBtn = document.getElementById('vol-up');
+        const volumeDisplay = document.getElementById('volume-display');
+
+        // 初期音量
+        hitSound.volume = 1.0;
+        volumeDisplay.textContent = `${Math.round(hitSound.volume * 100)}%`;
+
+        volDownBtn.addEventListener('click', () => {
+            hitSound.volume = Math.max(0, hitSound.volume - 0.1);
+            updateVolumeDisplay();
+        });
+
+        volUpBtn.addEventListener('click', () => {
+            hitSound.volume = Math.min(1, hitSound.volume + 0.1);
+            updateVolumeDisplay();
+        });
+
+        function updateVolumeDisplay() {
+            volumeDisplay.textContent = `${Math.round(hitSound.volume * 100)}%`;
+        }
+
+    </script>
+</body>
+
+</html>
