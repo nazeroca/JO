@@ -144,7 +144,7 @@
             <button id="vol-up">+</button>
 
         </div>
-        <button id="skip-button" class="skip-button hidden">スキップ</button>
+        <button id="skip-button" class="skip-button hidden">SKIP</button>
 
         <div class="button-group" id="button-group"></div>
         <div class="info" id="info"></div>
@@ -277,7 +277,7 @@
 
 
         function spawnCircle() {
-            if (isSkipping) return;
+            if (isSkipping) {circleCount = maxCircles};
 
             if (circleCount >= maxCircles) {
                 clearInterval(intervalId);
@@ -335,7 +335,7 @@
 
         function maybeShowFortune() {
             if (!ENABLE_FORTUNE) return;
-            if (Math.random() < 0.9 * setCount) {
+            if (Math.random() < 0.01 * setCount) {
                 const fortunes = ['休憩短縮', '根本固定', '透明使用', '選択肢減少', '易指令削除']; // ←「選択」追加
                 const selected = fortunes[Math.floor(Math.random() * fortunes.length)];
                 fortuneDisplay.textContent = selected;
@@ -404,7 +404,7 @@
             circleCount = 0;
             maxCircles = count;
             circles = [];
-            currentSpeed = '⇒' + speed / 1000;
+            currentSpeed = '＜' + speed / 1000;
             currentCount = count;
             setCount++;
             updateInfoDisplay();
