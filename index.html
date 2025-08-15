@@ -1,474 +1,65 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
-    <title>title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>振動テスト</title>
     <style>
-        html,
         body {
-            margin: 0;
-            height: 100%;
-            background-color: #111;
             font-family: sans-serif;
-        }
-
-        .container {
-            position: relative;
-            width: 100vw;
-            height: calc(100vw * 16 / 9);
-            max-height: 100vh;
-            margin: 0 auto;
-            background-color: #222;
-            overflow: hidden;
-        }
-
-        .circle {
-            position: absolute;
-            top: -100px;
-            width: 100px;
-            height: 100px;
-            background-color: rgb(255, 255, 255);
-            border-radius: 50%;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 30;
-        }
-
-        .judgeline {
-            position: absolute;
-            width: 100%;
-            height: 2px;
-            background-color: white;
-            top: 80%;
-            left: 0;
-        }
-
-        .button-group {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             display: flex;
-            gap: 20px;
+            flex-direction: column;
             justify-content: center;
-            z-index: 10;
-        }
-
-        .start-button {
-            padding: 3vh 3vw;
-            font-size: 4vw;
-            border: none;
-            cursor: pointer;
-            border-radius: 8px;
-            font-weight: bold;
-            color: white;
-            margin: 10px;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .info {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            font-size: 48px;
-            font-weight: bold;
-            z-index: 20;
-        }
-
-        .fortune {
-            position: absolute;
-            top: 9vh;
-            left: 50%;
-            transform: translateX(-50%);
-            color: rgb(255, 255, 255);
-            font-size: 10vw;
-            font-weight: bold;
-            z-index: 0;
-            display: none;
-            opacity: 0.3;
-        }
-
-        .volume-control {
-            position: absolute;
-            top: 83%;
-            left: 50%;
-            transform: translateX(-50%);
-            color: white;
-            font-size: 6vw;
-            display: flex;
             align-items: center;
-            gap: 12px;
-            z-index: 10;
-            font-weight: bold;
+            height: 100vh;
+            text-align: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
         }
-
-        .volume-control button {
-            font-size: 6vw;
-            padding: 4px 12px;
-            border-radius: 6px;
-            border: none;
+        button {
+            padding: 20px 40px;
+            font-size: 1.5em;
             cursor: pointer;
-            background-color: #444;
+            border: none;
+            border-radius: 10px;
+            background-color: #007bff;
             color: white;
-            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-
-        .skip-button {
-            position: absolute;
-            bottom: 2vh;
-            right: 2vw;
-            padding: 2vh 3vw;
-            font-size: 4vw;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            background-color: #555;
-            color: white;
-            cursor: pointer;
-            z-index: 15;
+        #status {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #333;
         }
     </style>
 </head>
-
 <body>
-    <div class="container" id="game-area">
-        <div class="judgeline"></div>
-        <div class="volume-control" id="volume-control">
-            <button id="vol-down">−</button>
-            <span id="volume-display">100%</span>
-            <button id="vol-up">+</button>
-
-        </div>
-        <button id="skip-button" class="skip-button hidden">SKIP</button>
-
-        <div class="button-group" id="button-group"></div>
-        <div class="info" id="info"></div>
-        <div class="fortune" id="fortune"></div>
-        <audio id="hit-sound" src="A.mp3" preload="auto"></audio>
-        <audio id="pena-sound" src="B.mp3" preload="auto"></audio>
-    </div>
+    <h1>振動テスト</h1>
+    <p>下のボタンを押すと、2秒間振動します。</p>
+    <button onclick="vibrateDevice()">振動させる</button>
+    <p id="status"></p>
 
     <script>
-        const ENABLE_FORTUNE = true;
+        function vibrateDevice() {
+            const statusElement = document.getElementById('status');
+            
+            // Vibration APIが利用可能かチェック
+            if (window.navigator && window.navigator.vibrate) {
+                // 2000ミリ秒（2秒）振動させる
+                window.navigator.vibrate(2000);
+                statusElement.textContent = '振動を開始しました（2秒間）';
 
-        const gameArea = document.getElementById('game-area');
-        const buttonGroup = document.getElementById('button-group');
-        const hitSound = document.getElementById('hit-sound');
-        const penaltySound = document.getElementById('pena-sound');
-        const infoDisplay = document.getElementById('info');
-        const fortuneDisplay = document.getElementById('fortune');
-        const skipButton = document.getElementById('skip-button');
+                // 2秒後にメッセージを元に戻す
+                setTimeout(() => {
+                    statusElement.textContent = '';
+                }, 2000);
 
-
-        const fallDuration = 3000;
-        let intervalId = null;
-        let circleCount = 0;
-        let maxCircles = 100;
-        let circles = [];
-        let currentSpeed = 1000;
-        let currentCount = 0;
-        let autoStartTimeout = null;
-        let setCount = 0; // ← セット数を追加
-        let showOnlyOneButtonNextTime = false; // ← 追加
-        let isRestFortune = false; // ← 「休憩」かどうかを記録するフラグ
-        let isSkipping = false;
-
-        const buttonConfigs = [
-            { label: 'Very Easy', speed: 5000, count: 20, color: '#FF69B4' },
-            { label: 'Easy', speed: 4000, count: 25, color: '#00E000' },
-            { label: 'Easy+', speed: 3500, count: 35, color: '#00C000' },
-            { label: 'Normal', speed: 2500, count: 40, color: '#0000E0' },
-            { label: 'Normal+', speed: 2000, count: 45, color: '#0000C0' },
-            { label: 'Hard', speed: 1500, count: 50, color: '#E00000' },
-            { label: 'Hard+', speed: 1000, count: 55, color: '#C00000' },
-            { label: 'Very Hard', speed: 800, count: 60, color: '#800080' },
-            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
-            { label: 'Hell', speed: 500, count: 50, color: '#000000' },
-            { label: 'Long Run', speed: 3000, count: 66, color: '#FF8C00' },
-            { label: 'Middle Run', speed: 2500, count: 75, color: '#FFD700' },
-            { label: 'Dash', speed: 500, count: 20, color: '#FFD700' },
-            { label: 'Rand Easy', speed: 0, count: 0, color: '#66FF66' },
-            { label: 'Rand Normal', speed: 0, count: 0, color: '#6666FF' },
-            { label: 'Rand Hard', speed: 0, count: 0, color: '#FF6666' },
-            { label: 'Accel Easy', speed: 2000, count: 30, color: '#AAFFAA' },
-            { label: 'Accel Normal', speed: 3000, count: 50, color: '#AAAAFF' },
-            { label: 'Accel Hard', speed: 5000, count: 80, color: '#FFAAAA' }
-
-        ];
-
-        function getRandomSpeedAndCount(i,j) {
-            const randomSpeed = getSinusoidalRandom(i,j);
-            const randomCount = Math.floor(100000 / randomSpeed);;
-            return { speed: randomSpeed, count: randomCount };
-        }
-
-        function getSinusoidalRandom(min, max) {
-            const theta = Math.random() * Math.PI; // 0〜π
-            const sinValue = Math.sin(theta);      // 0〜1（sin の性質）
-            return Math.floor(min + (max - min) * sinValue);
-        }
-
-        function getRandomButtons() {
-            const selectedIndexes = [];
-            while (selectedIndexes.length < 2) {
-                const randomIndex = Math.floor(Math.random() * buttonConfigs.length);
-                if (!selectedIndexes.includes(randomIndex)) {
-                    selectedIndexes.push(randomIndex);
-                }
-            }
-
-            return selectedIndexes.map(index => {
-                const base = buttonConfigs[index];
-                if (base.label === 'Rand Easy') {
-                    const { speed, count } = getRandomSpeedAndCount(2000, 5000);
-                    return { ...base, speed, count };
-                } else if (base.label === 'Rand Normal') {
-                    const { speed, count } = getRandomSpeedAndCount(1000, 3000);
-                    return { ...base, speed, count };
-                } else if (base.label === 'Rand Hard') {
-                    const { speed, count } = getRandomSpeedAndCount(500, 1500);
-                    return { ...base, speed, count };
-                } else {
-                    return base;
-                }
-            });
-        }
-
-        function showRandomButtons() {
-            buttonGroup.innerHTML = '';
-            const selectedButtons = getRandomButtons();
-
-            const buttonsToShow = showOnlyOneButtonNextTime ? [selectedButtons[0]] : selectedButtons;
-            showOnlyOneButtonNextTime = false; // ← 一度表示したら解除
-
-            buttonsToShow.forEach(config => {
-                const btn = document.createElement('button');
-                btn.className = 'start-button';
-                btn.textContent = config.label;
-                btn.style.backgroundColor = config.color;
-                btn.addEventListener('click', () => {
-                    clearTimeout(autoStartTimeout);
-                    if (config.label == 'Accel Easy' || config.label == 'Accel Normal' || config.label == 'Accel Hard') {
-                        startAccelGame(config.speed, config.count);
-                    } else {
-                        startGame(config.speed, config.count);
-                    }
-                });
-
-                buttonGroup.appendChild(btn);
-            });
-
-            buttonGroup.classList.remove('hidden');
-            if (setCount > 0) {
-                const delay = isRestFortune ? 3000 : 30000; // ← 休憩のときは5秒に短縮
-                autoStartTimeout = setTimeout(() => {
-                    buttonGroup.classList.add('hidden');
-                    startGame(500, 75);
-                }, delay);
-                isRestFortune = false;
-            }
-
-        }
-
-
-        function spawnCircle() {
-            if (isSkipping) {circleCount = maxCircles};
-
-            if (circleCount >= maxCircles) {
-                clearInterval(intervalId);
-                checkCirclesAndShowButtons();
-                return;
-            }
-
-            const circle = document.createElement('div');
-            circle.classList.add('circle');
-            gameArea.appendChild(circle);
-            circles.push(circle);
-
-            const startTime = performance.now();
-
-            function animateCircle(currentTime) {
-                if (isSkipping) {
-                    circle.remove();
-                    return;
-                }
-
-                const elapsed = currentTime - startTime;
-                const progress = elapsed / fallDuration;
-
-                if (progress < 1) {
-                    const containerHeight = gameArea.clientHeight;
-                    const startY = -0.1 * gameArea.clientHeight;
-                    const endY = containerHeight;
-                    const posY = startY + (endY - startY) * progress;
-                    circle.style.top = posY + 'px';
-
-                    const circleCenter = posY + 40;  // 円の中心位置
-                    const judgeLineY = containerHeight * 0.8;  // 判定ラインのY座標
-
-                    // 判定ラインと重なったときに音を鳴らす
-                    if (!circle.played && Math.abs(circleCenter - judgeLineY) < 5) {
-                        circle.played = true; // 先にフラグを立てる
-
-                        hitSound.pause();              // 再生中止
-                        hitSound.currentTime = 0;     // 再生位置を先頭に
-                        hitSound.play();              // 再再生
-
-                        circle.remove();
-                        return;
-                    }
-                    requestAnimationFrame(animateCircle);
-                } else {
-                    circle.remove();
-                }
-            }
-
-            requestAnimationFrame(animateCircle);
-            circleCount++;
-        }
-
-
-        function maybeShowFortune() {
-            if (!ENABLE_FORTUNE) return;
-            if (Math.random() < 0.01 * setCount) {
-                const fortunes = ['休憩短縮', '根本固定', '透明使用', '選択肢減少', '易指令削除']; // ←「選択」追加
-                const selected = fortunes[Math.floor(Math.random() * fortunes.length)];
-                fortuneDisplay.textContent = selected;
-                fortuneDisplay.style.display = 'block';
-
-                if (selected === '選択肢減少') {
-                    showOnlyOneButtonNextTime = true;
-                } else if (selected === '休憩短縮') {
-                    isRestFortune = true;
-                } else if (selected === '易指令削除') {
-                    const targetLabels = ['Very Easy', 'Easy', 'Easy+', 'Rand Easy','Accel Easy'];
-                    const candidates = buttonConfigs.filter(config => targetLabels.includes(config.label));
-
-                    if (candidates.length > 0) {
-                        const randomIndex = Math.floor(Math.random() * candidates.length);
-                        const targetConfig = candidates[randomIndex];
-
-                        const indexToRemove = buttonConfigs.findIndex(config => config === targetConfig);
-                        if (indexToRemove !== -1) {
-                            buttonConfigs.splice(indexToRemove, 1);
-                        }
-                    }
-                }
-            }
-        }
-
-        function clearFortune() {
-            fortuneDisplay.style.display = 'none';
-        }
-
-        skipButton.addEventListener('click', () => {
-            isSkipping = true;
-            clearInterval(intervalId);
-
-            // 出現済みノーツをすぐ消す
-            circles.forEach(circle => {
-                if (circle.isConnected) {
-                    circle.remove();
-                }
-            });
-
-            setTimeout(() => {
-                isSkipping = false;
-                checkCirclesAndShowButtons();
-            }, 100);
-        });
-
-        function startGame(speed, count) {
-            clearTimeout(autoStartTimeout);
-            buttonGroup.classList.add('hidden');
-            circleCount = 0;
-            maxCircles = count;
-            circles = [];
-            currentSpeed = speed / 1000;
-            currentCount = count;
-            setCount++; // ← セット数をカウント！
-            updateInfoDisplay();
-            maybeShowFortune();
-            skipButton.classList.remove('hidden');
-            intervalId = setInterval(spawnCircle, speed);
-        }
-
-        function startAccelGame(speed, count) {
-            clearTimeout(autoStartTimeout);
-            buttonGroup.classList.add('hidden');
-            circleCount = 0;
-            maxCircles = count;
-            circles = [];
-            currentSpeed = '＜' + speed / 1000;
-            currentCount = count;
-            setCount++;
-            updateInfoDisplay();
-            maybeShowFortune();
-            skipButton.classList.remove('hidden');
-            let i = 0;
-
-            function spawnWithAcceleration() {
-                if (i >= count) {
-                    setTimeout(checkCirclesAndShowButtons, 1000);
-                    return;
-                }
-                spawnCircle();
-                i++;
-                let interval = speed * Math.pow(0.96, i - 1); // i番目の間隔を計算
-
-                interval = Math.max(interval, 500);
-
-                setTimeout(spawnWithAcceleration, interval);
-            }
-            spawnWithAcceleration();
-        }
-
-
-        function updateInfoDisplay() {
-            infoDisplay.textContent = `Set: ${setCount} | Speed: ${currentSpeed}s | Count: ${currentCount}`;
-        }
-
-        function checkCirclesAndShowButtons() {
-            if (circles.every(circle => circle.offsetTop >= gameArea.clientHeight || !circle.isConnected)) {
-                clearFortune();
-                skipButton.classList.add('hidden');
-                showRandomButtons();
             } else {
-                setTimeout(checkCirclesAndShowButtons, 100);
+                // Vibration APIが利用できない場合
+                statusElement.textContent = 'エラー: お使いのデバイスやブラウザでは振動機能が利用できません。';
             }
         }
-
-        // 初期表示
-        showRandomButtons();
-
-        const volDownBtn = document.getElementById('vol-down');
-        const volUpBtn = document.getElementById('vol-up');
-        const volumeDisplay = document.getElementById('volume-display');
-
-        // 初期音量
-        hitSound.volume = 1.0;
-        volumeDisplay.textContent = `${Math.round(hitSound.volume * 100)}%`;
-
-        volDownBtn.addEventListener('click', () => {
-            hitSound.volume = Math.max(0, hitSound.volume - 0.1);
-            updateVolumeDisplay();
-        });
-
-        volUpBtn.addEventListener('click', () => {
-            hitSound.volume = Math.min(1, hitSound.volume + 0.1);
-            updateVolumeDisplay();
-        });
-
-        function updateVolumeDisplay() {
-            volumeDisplay.textContent = `${Math.round(hitSound.volume * 100)}%`;
-        }
-
     </script>
 </body>
-
 </html>
